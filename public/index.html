@@ -10,7 +10,7 @@
   <div id="game-container"></div>
   <script>
     const config = {
-      type: Phaser.AUTO,
+      type: Phaser.WEBGL, // Force WebGL
       width: window.innerWidth,
       height: window.innerHeight,
       parent: 'game-container',
@@ -52,62 +52,120 @@
       this.load.image('hero', 'assets/sprites-fixedgrid.png');
     }
 
-function create() {
-  mapData = this.cache.json.get('map');
+    function create() {
+      mapData = this.cache.json.get('map');
 
-  // Function to check map dimensions
-  function checkMapDimensions(map, expectedCols = null) {
-    if (!Array.isArray(map) || !map.length || !Array.isArray(map[0])) {
-      console.error("Error: Map data is not a valid 2D array.");
-      return false;
-    }
+      // Function to check map dimensions
+      function checkMapDimensions(map, expectedCols = null) {
+        if (!Array.isArray(map) || !map.length || !Array.isArray(map[0])) {
+          console.error("Error: Map data is not a valid 2D array.");
+          return false;
+        }
 
-    const numRows = map.length;
-    const referenceCols = expectedCols !== null ? expectedCols : map[0].length;
-    
-    console.log(`Checking map: ${map[0].length}x${numRows}, expecting ${referenceCols} columns per row.`);
+        const numRows = map.length;
+        const referenceCols = expectedCols !== null ? expectedCols : map[0].length;
+        
+        console.log(`Checking map: ${map[0].length}x${numRows}, expecting ${referenceCols} columns per row.`);
 
-    let isValid = true;
-    for (let row = 0; row < numRows; row++) {
-      if (!Array.isArray(map[row]) || map[row].length !== referenceCols) {
-        console.error(`Row ${row} has ${map[row]?.length || 0} columns, expected ${referenceCols}.`);
-        isValid = false;
+        let isValid = true;
+        for (let row = 0; row < numRows; row++) {
+          if (!Array.isArray(map[row]) || map[row].length !== referenceCols) {
+            console.error(`Row ${row} has ${map[row]?.length || 0} columns, expected ${referenceCols}.`);
+            isValid = false;
+          }
+        }
+
+        if (isValid) {
+          console.log("Map dimensions are valid.");
+        } else {
+          console.error("Map validation failed. Please fix map.json.");
+        }
+        return isValid;
       }
-    }
 
-    if (isValid) {
-      console.log("Map dimensions are valid.");
-    } else {
-      console.error("Map validation failed. Please fix map.json.");
-    }
-    return isValid;
-  }
+      // Validate map dimensions before proceeding
+      if (!checkMapDimensions(mapData)) {
+        console.error("Stopping game initialization due to invalid map.");
+        return; // Halt execution
+      }
 
-  // Validate map dimensions before proceeding
-  if (!checkMapDimensions(mapData)) {
-    console.error("Stopping game initialization due to invalid map.");
-    return; // Halt execution
-  }
+      console.log('Map loaded:', mapData[0].length, 'x', mapData.length);
+      console.log(`Canvas size: ${window.innerWidth}x${window.innerHeight}`);
 
-  console.log('Map loaded:', mapData[0].length, 'x', mapData.length);
-  console.log(`Canvas size: ${window.innerWidth}x${window.innerHeight}`);
+      // Debug renderer
+      console.log('Renderer type:', this.renderer.type === Phaser.WEBGL ? 'WebGL' : 'Canvas');
+      console.log('Renderer details:', this.renderer);
+      console.log('Pipeline manager available:', !!this.game.renderer.pipelines);
 
-  // Rest of your existing create function code...
-  grassTexture = this.textures.get('grass');
-  treeTexture = this.textures.get('tree');
-  heroTexture = this.textures.get('hero');
+      // Check WebGL support and attempt pipeline setup
+      let pipelineApplied = false;
+      if (this.renderer.type === Phaser.WEBGL) {
+        // Define the shader for the heroes
+        const HeroShader = {
+          fragmentShader: `
+            precision mediump float;
+            uniform sampler2D uMainSampler;
+            uniform float uTime;
+            varying vec2 outTexCoord;
+            void main() {
+              vec4 color = texture2D(uMainSampler, outTexCoord);
+              // Apply a stronger pulsing blue-green tint
+              float pulse = 0.5 + 0.5 * sin(uTime * 2.0);
+              color.rgb += vec3(0.0, 0.3 * pulse, 0.5 * pulse);
+              // Preserve alpha
+              gl_FragColor = vec4(color.rgb, color.a);
+            }
+          `
+        };
 
-  grassFrame = new Phaser.Textures.Frame(grassTexture, 'grass', 0, 225, 1, 30, 30);
-  trunkFrame = new Phaser.Textures.Frame(treeTexture, 'tree_trunk', 0, 0, 0, 480, 480);
-  leavesFrame = new Phaser.Textures.Frame(treeTexture, 'tree_leaves', 0, 480, 0, 480, 480);
-  heroFrame = new Phaser.Textures.Frame(heroTexture, 'hero', 0, 0, 0, 112, 112);
+        // Create a custom pipeline for the shader
+        class HeroPipeline extends Phaser.Renderer.WebGL.Pipelines.SinglePipeline {
+          constructor(game) {
+            super({
+              game: game,
+              fragShader: HeroShader.fragmentShader,
+              uniforms: ['uMainSampler', 'uTime']
+            });
+          }
 
-  tilemap = this.make.tilemap({
-    data: mapData.map(row => row.map(cell => cell[0] <= 512 ? 0 : -1)),
-    tileWidth: 32,
-    tileHeight: 32
-  });
-  
+          onPreRender() {
+            this.set1f('uTime', time);
+          }
+        }
+
+        // Register the pipeline
+        try {
+          const pipeline = new HeroPipeline(this.game);
+          if (this.game.renderer.pipelines) {
+            this.game.renderer.pipelines.add('HeroPipeline', pipeline);
+            console.log('Pipeline successfully added');
+            pipelineApplied = true;
+          } else {
+            console.warn('Renderer pipelines manager not available');
+          }
+        } catch (e) {
+          console.error('Failed to add pipeline:', e);
+        }
+      } else {
+        console.warn('WebGL is not available. Shader for heroes will be skipped.');
+      }
+
+      // Rest of your existing create function code...
+      grassTexture = this.textures.get('grass');
+      treeTexture = this.textures.get('tree');
+      heroTexture = this.textures.get('hero');
+
+      grassFrame = new Phaser.Textures.Frame(grassTexture, 'grass', 0, 225, 1, 30, 30);
+      trunkFrame = new Phaser.Textures.Frame(treeTexture, 'tree_trunk', 0, 0, 0, 480, 480);
+      leavesFrame = new Phaser.Textures.Frame(treeTexture, 'tree_leaves', 0, 480, 0, 480, 480);
+      heroFrame = new Phaser.Textures.Frame(heroTexture, 'hero', 0, 0, 0, 112, 112);
+
+      // Create tilemap and tileset
+      tilemap = this.make.tilemap({
+        data: mapData.map(row => row.map(cell => cell[0] <= 512 ? 0 : -1)),
+        tileWidth: 32,
+        tileHeight: 32
+      });
       const tileset = tilemap.addTilesetImage('grass', 'grass', 32, 32, 0, 0, 0);
       grassLayer = tilemap.createLayer(0, tileset, 0, 0);
       grassLayer.setDepth(0);
@@ -168,6 +226,11 @@ function create() {
           sprite.setScale(1);
           sprite.setFrame(heroFrame);
           sprite.setDisplaySize(112, 112);
+          // Apply pipeline only if WebGL and pipeline were successfully added
+          if (pipelineApplied) {
+            sprite.setPipeline('HeroPipeline');
+            console.log('Applied HeroPipeline to hero sprite');
+          }
         }
       });
 
