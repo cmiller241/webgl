@@ -10,7 +10,7 @@
   <div id="game-container"></div>
   <script>
     const config = {
-      type: Phaser.WEBGL, // Force WebGL
+      type: Phaser.WEBGL,
       width: window.innerWidth,
       height: window.innerHeight,
       parent: 'game-container',
@@ -42,65 +42,62 @@
     let socket;
     let grassGroup, trunkGroup, leavesGroup, heroGroup;
     let grassFrame, trunkFrame, leavesFrame, heroFrame;
-    let tilemap, grassLayer;
-    let heroPositions = []; // Store hero pixel coordinates { x, y }
+    let heroPositions = [];
+    let activeGrassSprites = [];
 
     function preload() {
       this.load.json('map', 'js/map.json');
       this.load.image('grass', 'assets/sprites2.png');
       this.load.image('tree', 'assets/tree3.png');
       this.load.image('hero', 'assets/sprites-fixedgrid.png');
+
+      this.load.on('filecomplete', (key) => console.log(`Loaded ${key}`));
+      this.load.on('loaderror', (file) => console.error(`Failed to load ${file.key} from ${file.src}`));
     }
 
     function create() {
       mapData = this.cache.json.get('map');
 
-      // Function to check map dimensions
       function checkMapDimensions(map, expectedCols = null) {
         if (!Array.isArray(map) || !map.length || !Array.isArray(map[0])) {
-          console.error("Error: Map data is not a valid 2D array.");
+          console.error("Map data is not a valid 2D array.");
           return false;
         }
 
         const numRows = map.length;
         const referenceCols = expectedCols !== null ? expectedCols : map[0].length;
         
-        console.log(`Checking map: ${map[0].length}x${numRows}, expecting ${referenceCols} columns per row.`);
+        console.log(`Checking map: ${map[0].length}x${numRows}, expecting ${referenceCols} columns`);
 
         let isValid = true;
         for (let row = 0; row < numRows; row++) {
           if (!Array.isArray(map[row]) || map[row].length !== referenceCols) {
-            console.error(`Row ${row} has ${map[row]?.length || 0} columns, expected ${referenceCols}.`);
+            console.error(`Row ${row} has ${map[row]?.length || 0} columns, expected ${referenceCols}`);
             isValid = false;
           }
         }
 
         if (isValid) {
-          console.log("Map dimensions are valid.");
+          console.log("Map dimensions valid.");
         } else {
-          console.error("Map validation failed. Please fix map.json.");
+          console.error("Map validation failed!");
         }
         return isValid;
       }
 
-      // Validate map dimensions before proceeding
       if (!checkMapDimensions(mapData)) {
         console.error("Stopping game initialization due to invalid map.");
-        return; // Halt execution
+        return;
       }
 
       console.log('Map loaded:', mapData[0].length, 'x', mapData.length);
       console.log(`Canvas size: ${window.innerWidth}x${window.innerHeight}`);
 
-      // Debug renderer
       console.log('Renderer type:', this.renderer.type === Phaser.WEBGL ? 'WebGL' : 'Canvas');
-      console.log('Renderer details:', this.renderer);
-      console.log('Pipeline manager available:', !!this.game.renderer.pipelines);
+      console.log('Pipeline manager:', !!this.game.renderer.pipelines);
 
-      // Check WebGL support and attempt pipeline setup
       let pipelineApplied = false;
       if (this.renderer.type === Phaser.WEBGL) {
-        // Define the shader for the heroes
         const HeroShader = {
           fragmentShader: `
             precision mediump float;
@@ -109,16 +106,13 @@
             varying vec2 outTexCoord;
             void main() {
               vec4 color = texture2D(uMainSampler, outTexCoord);
-              // Apply a stronger pulsing blue-green tint
               float pulse = 0.5 + 0.5 * sin(uTime * 2.0);
               color.rgb += vec3(0.0, 0.3 * pulse, 0.5 * pulse);
-              // Preserve alpha
               gl_FragColor = vec4(color.rgb, color.a);
             }
           `
         };
 
-        // Create a custom pipeline for the shader
         class HeroPipeline extends Phaser.Renderer.WebGL.Pipelines.SinglePipeline {
           constructor(game) {
             super({
@@ -133,7 +127,6 @@
           }
         }
 
-        // Register the pipeline
         try {
           const pipeline = new HeroPipeline(this.game);
           if (this.game.renderer.pipelines) {
@@ -141,38 +134,36 @@
             console.log('Pipeline successfully added');
             pipelineApplied = true;
           } else {
-            console.warn('Renderer pipelines manager not available');
+            console.warn('Renderer pipelines not available');
           }
         } catch (e) {
           console.error('Failed to add pipeline:', e);
         }
       } else {
-        console.warn('WebGL is not available. Shader for heroes will be skipped.');
+        console.warn('WebGL not available. Shader skipped.');
       }
 
-      // Rest of your existing create function code...
       grassTexture = this.textures.get('grass');
       treeTexture = this.textures.get('tree');
       heroTexture = this.textures.get('hero');
 
-      grassFrame = new Phaser.Textures.Frame(grassTexture, 'grass', 0, 225, 1, 30, 30);
-      trunkFrame = new Phaser.Textures.Frame(treeTexture, 'tree_trunk', 0, 0, 0, 480, 480);
-      leavesFrame = new Phaser.Textures.Frame(treeTexture, 'tree_leaves', 0, 480, 0, 480, 480);
-      heroFrame = new Phaser.Textures.Frame(heroTexture, 'hero', 0, 0, 0, 112, 112);
+      grassTexture.add('grass', 0, 225, 1, 30, 30);
+      treeTexture.add('tree_trunk', 0, 0, 0, 480, 480);
+      treeTexture.add('tree_leaves', 0, 480, 0, 480, 480);
+      heroTexture.add('hero', 0, 0, 0, 112, 112);
 
-      // Create tilemap and tileset
-      tilemap = this.make.tilemap({
-        data: mapData.map(row => row.map(cell => cell[0] <= 512 ? 0 : -1)),
-        tileWidth: 32,
-        tileHeight: 32
-      });
-      const tileset = tilemap.addTilesetImage('grass', 'grass', 32, 32, 0, 0, 0);
-      grassLayer = tilemap.createLayer(0, tileset, 0, 0);
-      grassLayer.setDepth(0);
-      grassLayer.setScale(1);
+      grassFrame = grassTexture.frames['grass'];
+      trunkFrame = treeTexture.frames['tree_trunk'];
+      leavesFrame = treeTexture.frames['tree_leaves'];
+      heroFrame = heroTexture.frames['hero'];
+
+      console.log('Grass frame exists:', grassTexture.frames['grass'] ? 'Yes' : 'No');
+      console.log('Trunk frame exists:', treeTexture.frames['tree_trunk'] ? 'Yes' : 'No');
+      console.log('Leaves frame exists:', treeTexture.frames['tree_leaves'] ? 'Yes' : 'No');
+      console.log('Hero frame exists:', heroTexture.frames['hero'] ? 'Yes' : 'No');
 
       grassGroup = this.add.group({
-        maxSize: 2000,
+        maxSize: 2500,
         createCallback: (sprite) => {
           sprite.setOrigin(0);
           sprite.setActive(false);
@@ -180,7 +171,8 @@
           sprite.setDepth(0);
           sprite.setAngle(0);
           sprite.setPosition(0, 0);
-          sprite.setScale(1);
+          sprite.setTexture('grass', 'grass');
+          sprite.setDisplaySize(32, 32);
         }
       });
 
@@ -193,8 +185,7 @@
           sprite.setDepth(0);
           sprite.setAngle(0);
           sprite.setPosition(0, 0);
-          sprite.setScale(1);
-          sprite.setFrame(trunkFrame);
+          sprite.setTexture('tree', 'tree_trunk');
           sprite.setDisplaySize(480, 480);
         }
       });
@@ -208,8 +199,7 @@
           sprite.setDepth(0);
           sprite.setAngle(0);
           sprite.setPosition(0, 0);
-          sprite.setScale(1);
-          sprite.setFrame(leavesFrame);
+          sprite.setTexture('tree', 'tree_leaves');
           sprite.setDisplaySize(480, 480);
         }
       });
@@ -223,24 +213,20 @@
           sprite.setDepth(0);
           sprite.setAngle(0);
           sprite.setPosition(0, 0);
-          sprite.setScale(1);
-          sprite.setFrame(heroFrame);
+          sprite.setTexture('hero', 'hero');
           sprite.setDisplaySize(112, 112);
-          // Apply pipeline only if WebGL and pipeline were successfully added
-          if (pipelineApplied) {
-            sprite.setPipeline('HeroPipeline');
-            console.log('Applied HeroPipeline to hero sprite');
-          }
+          // Pipeline is not set here; it will be set dynamically in render
         }
       });
 
-      grassGroup.createMultiple({ key: 'grass', repeat: 1500 });
-      trunkGroup.createMultiple({ key: 'tree', repeat: 500 });
-      leavesGroup.createMultiple({ key: 'tree', repeat: 500 });
-      heroGroup.createMultiple({ key: 'hero', repeat: 1000 });
+      grassGroup.createMultiple({ key: 'grass', frame: 'grass', repeat: 2499 });
+      trunkGroup.createMultiple({ key: 'tree', frame: 'tree_trunk', repeat: 499 });
+      leavesGroup.createMultiple({ key: 'tree', frame: 'tree_leaves', repeat: 499 });
+      heroGroup.createMultiple({ key: 'hero', frame: 'hero', repeat: 1000 });
 
-      // Place heroes randomly at pixel coordinates on grass
-      const numHeroes = 10000;
+      console.log(`Created ${grassGroup.getLength()} grass sprites, ${trunkGroup.getLength()} trunk sprites, ${leavesGroup.getLength()} leaves sprites, ${heroGroup.getLength()} hero sprites`);
+
+      const numHeroes = 500;
       const mapWidth = mapData[0].length * 32;
       const mapHeight = mapData.length * 32;
       for (let i = 0; i < numHeroes; i++) {
@@ -255,7 +241,7 @@
           if (mapRow >= 0 && mapRow < mapData.length && mapCol >= 0 && mapCol < mapData[0].length) {
             const tileValue = mapData[mapRow][mapCol][0];
             const tile = tileValue - 1;
-            if (tile <= 512 && tile !== 511) { // Grass, not tree
+            if (tile <= 512 && tile !== 511) {
               heroPositions.push({ x, y });
               placed = true;
             }
@@ -264,6 +250,8 @@
         }
       }
       console.log(`Placed ${heroPositions.length} heroes`);
+
+      console.log('Map sample (5x5):', JSON.stringify(mapData.slice(0, 5).map(row => row.slice(0, 5))));
 
       fpsBox = this.add.rectangle(10, 10, 180, 60, 0x000000).setOrigin(0).setAlpha(0.5);
       fpsBox.setScrollFactor(0);
@@ -279,12 +267,13 @@
 
       this.cameras.main.setZoom(1);
       this.cameras.main.setBounds(
-        -window.innerWidth / 2,
-        -window.innerHeight / 2,
-        mapData[0].length * 32 + window.innerWidth,
-        mapData.length * 32 + window.innerHeight
+        0, 0,
+        mapData[0].length * 32,
+        mapData.length * 32
       );
-      this.cameras.main.roundPx = false;
+      this.cameras.main.scrollX = 0;
+      this.cameras.main.scrollY = 0;
+      this.cameras.main.roundPixels = true;
 
       keys = this.input.keyboard.addKeys({
         ArrowLeft: Phaser.Input.Keyboard.KeyCodes.LEFT,
@@ -305,10 +294,10 @@
       let cameraX = this.cameras.main.scrollX;
       let cameraY = this.cameras.main.scrollY;
 
-      if (keys.ArrowLeft.isDown) cameraX -= cameraSpeed;
-      if (keys.ArrowRight.isDown) cameraX += cameraSpeed;
-      if (keys.ArrowUp.isDown) cameraY -= cameraSpeed;
-      if (keys.ArrowDown.isDown) cameraY += cameraSpeed;
+      if (keys.ArrowLeft?.isDown) cameraX -= cameraSpeed;
+      if (keys.ArrowRight?.isDown) cameraX += cameraSpeed;
+      if (keys.ArrowUp?.isDown) cameraY -= cameraSpeed;
+      if (keys.ArrowDown?.isDown) cameraY += cameraSpeed;
 
       cameraX = Math.round(cameraX);
       cameraY = Math.round(cameraY);
@@ -322,7 +311,7 @@
 
       if (time - lastFpsUpdate >= fpsUpdateInterval) {
         fpsText.setText(`FPS: ${Math.round(avgFps)}`);
-        lastFpsUpdate = time / 1000;
+        lastFpsUpdate = time;
       }
 
       render.call(this, cameraX, cameraY);
@@ -331,6 +320,13 @@
     }
 
     function render(cameraX, cameraY) {
+      // Reset only necessary sprites
+      activeGrassSprites.forEach(sprite => {
+        sprite.setActive(false);
+        sprite.setVisible(false);
+        sprite.setPosition(0, 0);
+      });
+      activeGrassSprites = [];
       trunkGroup.getChildren().forEach(sprite => {
         sprite.setActive(false);
         sprite.setVisible(false);
@@ -347,6 +343,7 @@
         sprite.setActive(false);
         sprite.setVisible(false);
         sprite.setPosition(0, 0);
+        sprite.resetPipeline(); // Reset pipeline to default for all hero sprites
       });
 
       const spriteWidth = 32;
@@ -354,83 +351,100 @@
       const canvasWidth = game.config.width;
       const canvasHeight = game.config.height;
 
-      const startCol = Math.floor(cameraX / spriteWidth) - 5;
-      const startRow = Math.floor(cameraY / spriteHeight) - 5;
-      const maxCols = Math.ceil(canvasWidth / spriteWidth) + 10;
-      const maxRows = Math.ceil(canvasHeight / spriteHeight) + 10;
+      // Tighter culling bounds
+      const bufferTiles = 5;
+      const startCol = Math.max(0, Math.floor(cameraX / spriteWidth) - bufferTiles);
+      const startRow = Math.max(0, Math.floor(cameraY / spriteHeight) - bufferTiles);
+      const endCol = Math.min(mapData[0].length, Math.ceil((cameraX + canvasWidth) / spriteWidth) + bufferTiles);
+      const endRow = Math.min(mapData.length, Math.ceil((cameraY + canvasHeight) / spriteHeight) + bufferTiles);
 
       let grassCount = 0;
       let treeCount = 0;
       let heroCount = 0;
 
-      // Render trees
-      for (let row = -10; row <= maxRows + 5; row++) {
-        for (let col = -5; col <= maxCols + 5; col++) {
-          const mapRow = startRow + row;
-          const mapCol = startCol + col;
-          if (mapRow < 0 || mapRow >= mapData.length || mapCol < 0 || mapCol >= mapData[0].length) continue;
-
-          const tileValue = mapData[mapRow][mapCol][0];
+      for (let row = startRow; row < endRow; row++) {
+        for (let col = startCol; col < endCol; col++) {
+          const tileValue = mapData[row][col][0];
           const tile = tileValue - 1;
 
-          if (tile <= 512) {
-            grassCount++;
+          if (tile < 511 || tile === 511) {
+            const grassX = col * spriteWidth;
+            const grassY = row * spriteHeight;
+            const grassSprite = grassGroup.get(grassX, grassY, 'grass');
+            if (grassSprite) {
+              grassSprite.setDepth(0);
+              grassSprite.setActive(true);
+              grassSprite.setVisible(true);
+              activeGrassSprites.push(grassSprite);
+              grassCount++;
+            } else {
+              console.warn(`No grass sprite at (${grassX}, ${grassY}), tile: ${tile}`);
+            }
           }
 
           if (treeCount >= 500) continue;
 
           if (tile === 511) {
             const amplitude = (3 * Math.PI) / 180;
-            const rotation = amplitude * Math.sin(2 * time + 0.5 * mapCol);
+            const rotation = amplitude * Math.sin(2 * time + 0.5 * col);
 
-            const centerX = Math.floor(mapCol * spriteWidth - 240 + 16) + 240;
-            const baseY = Math.floor(mapRow * spriteHeight - 240 + 16) + 480;
+            const centerX = Math.floor(col * spriteWidth - 240 + 16) + 240;
+            const baseY = Math.floor(row * spriteHeight - 240 + 16) + 480;
 
             const trunkSprite = trunkGroup.get(centerX, baseY, 'tree');
             if (trunkSprite) {
-              trunkSprite.setDepth(mapRow * 10 + 1);
+              trunkSprite.setDepth(row * 10 + 1);
               trunkSprite.setAngle(rotation * 180 / Math.PI);
               trunkSprite.y = baseY - 240;
               trunkSprite.setActive(true);
               trunkSprite.setVisible(true);
               treeCount++;
+            } else {
+              console.warn(`No trunk sprite at (${centerX}, ${baseY}), tile: ${tile}`);
             }
 
             const leavesSprite = leavesGroup.get(centerX, baseY - 1, 'tree');
             if (leavesSprite) {
-              leavesSprite.setDepth(mapRow * 10 + 2);
+              leavesSprite.setDepth(row * 10 + 2);
               leavesSprite.setAngle(rotation * 180 / Math.PI);
               leavesSprite.y = baseY - 240;
               leavesSprite.setActive(true);
               leavesSprite.setVisible(true);
 
-              const tintR = 0x80 + Math.floor((mapCol % 10) * 25);
-              const tintG = 0x80 + Math.floor((mapRow % 10) * 8);
+              const tintR = 0x80 + Math.floor((col % 10) * 25);
+              const tintG = 0x80 + Math.floor((row % 10) * 8);
               const tintB = 0x10;
               const tint = (tintR << 16) | (tintG << 8) | tintB;
               leavesSprite.setTint(tint);
 
               treeCount++;
+            } else {
+              console.warn(`No leaves sprite at (${centerX}, ${baseY - 1}), tile: ${tile}`);
             }
           }
         }
       }
 
-      // Render heroes
       heroPositions.forEach(({ x, y }) => {
         if (x >= cameraX - 112 && x <= cameraX + canvasWidth + 112 &&
             y >= cameraY - 112 && y <= cameraY + canvasHeight + 112) {
           const heroSprite = heroGroup.get(x, y, 'hero');
           if (heroSprite) {
-            heroSprite.setDepth((y / spriteHeight) * 10 + 1.5); // Depth based on precise y
+            heroSprite.setDepth((y / spriteHeight) * 10 + 1.5);
             heroSprite.setActive(true);
             heroSprite.setVisible(true);
+            // Apply HeroPipeline only to visible hero sprites
+            if (this.game.renderer.pipelines && this.game.renderer.pipelines.get('HeroPipeline')) {
+              heroSprite.setPipeline('HeroPipeline');
+            }
             heroCount++;
+          } else {
+            console.warn(`No hero sprite at (${x}, ${y})`);
           }
         }
       });
 
-      console.log(`Rendered ${grassCount} grass tiles, ${treeCount} tree sprites, ${heroCount} heroes`);
+      console.log(`Rendered ${grassCount} grass sprites, ${treeCount} tree sprites, ${heroCount} heroes`);
     }
   </script>
 </body>
