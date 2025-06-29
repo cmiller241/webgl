@@ -2,6 +2,7 @@ import { createGrassGroup, getGrassFrame } from './sprites/grass.js';
 import { createTreeGroups, getTreeFrames } from './sprites/tree.js';
 import { createHeroGroup, getHeroFrame } from './sprites/hero.js';
 import { setupHeroShader } from './shaders/heroShader.js';
+import { setupTreeShader } from './shaders/treeShader.js'; // Added import
 
 export function create() {
   this.DEBUG = false; // Set debug flag
@@ -47,6 +48,7 @@ export function create() {
   }
 
   this.pipelineApplied = setupHeroShader(this);
+  this.treePipelineApplied = setupTreeShader(this); // Initialize tree shader
 
   this.grassGroup = createGrassGroup(this);
   this.grassFrame = getGrassFrame(this);

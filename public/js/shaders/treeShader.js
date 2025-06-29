@@ -1,7 +1,7 @@
-export function setupHeroShader(scene) {
+export function setupTreeShader(scene) {
   let pipelineApplied = false;
   if (scene.renderer.type === Phaser.WEBGL) {
-    const HeroShader = {
+    const TreeShader = {
       fragmentShader: `
         precision mediump float;
         uniform sampler2D uMainSampler;
@@ -10,17 +10,12 @@ export function setupHeroShader(scene) {
         uniform float uShadowOpacity;
         uniform float uTime; // Time in seconds for dynamic angle
         uniform vec2 uFrameUV; // Top-left UV of the frame
-        uniform vec2 uFrameSize; // Normalized size of the frame (112/1120)
+        uniform vec2 uFrameSize; // Normalized size of the frame (480/1440, 480/480)
         varying vec2 outTexCoord;
 
         void main() {
           vec4 color = texture2D(uMainSampler, outTexCoord);
           vec4 finalColor = color;
-
-          // Debug: Faint red in transparent areas to confirm shader execution
-        //   if (color.a < 0.01) {
-        //     finalColor = vec4(0.2, 0.0, 0.0, 0.1);
-        //   }
 
           // Preserve opaque sprite pixels
           if (color.a > 0.01) {
@@ -28,16 +23,16 @@ export function setupHeroShader(scene) {
             return;
           }
 
-          // Normalize outTexCoord to frame's UV space (0.0 to 1.0 within 112x112px)
+          // Normalize outTexCoord to frame's UV space (0.0 to 1.0 within 480x480px)
           vec2 frameCoord = (outTexCoord - uFrameUV) / uFrameSize;
 
-          // Pixel coordinates in frame (0 to 112)
-          vec2 pixelCoord = frameCoord * 112.0;
+          // Pixel coordinates in frame (0 to 480)
+          vec2 pixelCoord = frameCoord * 480.0;
           float pixelY = pixelCoord.y;
-          float baseY = 80.0; // Sprite's feet at y = 80px
+          float baseY = 245.0; // Tree trunk base at y = 245px
 
           // Shadow projection parameters
-          float maxShadowDist = 0.5 * baseY; // Max shadow distance (40px)
+          float maxShadowDist = 0.5 * baseY; // Max shadow distance (122.5px)
           float angleRad = fract(uTime / 720.0) * 2.0 * 3.14159265359; // 0 to 2π over 720s
           float cosTheta = cos(angleRad);
           float sinTheta = sin(angleRad);
@@ -50,7 +45,7 @@ export function setupHeroShader(scene) {
               // Calculate source pixel that casts the shadow
               float sourceX = pixelCoord.x - dPrime * cosTheta;
               float sourceY = baseY - 2.0 * dPrime; // sourceY = baseY - 2 * dPrime
-              vec2 sourceCoord = vec2(sourceX, sourceY) / 112.0; // Normalize to frame UV
+              vec2 sourceCoord = vec2(sourceX, sourceY) / 480.0; // Normalize to frame UV
 
               // Check if source is within frame bounds
               if (sourceCoord.x >= 0.0 && sourceCoord.x <= 1.0 &&
@@ -70,11 +65,11 @@ export function setupHeroShader(scene) {
       `
     };
 
-    class HeroPipeline extends Phaser.Renderer.WebGL.Pipelines.SinglePipeline {
+    class TreePipeline extends Phaser.Renderer.WebGL.Pipelines.SinglePipeline {
       constructor(game) {
         super({
           game: game,
-          fragShader: HeroShader.fragmentShader,
+          fragShader: TreeShader.fragmentShader,
           uniforms: [
             'uMainSampler',
             'uResolution',
@@ -89,29 +84,29 @@ export function setupHeroShader(scene) {
 
       onPreRender() {
         this.set2f('uResolution', this.game.config.width, this.game.config.height);
-        this.set1f('uShadowOffset', 80.0); // 80px offset from sprite top
+        this.set1f('uShadowOffset', 245.0); // Offset from sprite top
         this.set1f('uShadowOpacity', 0.3); // Shadow alpha
         this.set1f('uTime', this.game.loop.time / 500.0); // Time in seconds
-        this.set2f('uFrameUV', 0.0, 0.0); // Leftmost frame
-        this.set2f('uFrameSize', 112.0 / 1120.0, 112.0 / 1120.0); // Frame size in UV space
-        console.log('HeroPipeline onPreRender: Shader uniforms set, time:', this.game.loop.time / 1000.0);
+        this.set2f('uFrameUV', 0.333, 0.0); // Adjusted dynamically in render.js
+        this.set2f('uFrameSize', 480.0 / 1440.0, 480.0 / 480.0); // Frame size in UV space
+        console.log('TreePipeline onPreRender: Shader uniforms set, time:', this.game.loop.time / 1000.0);
       }
     }
 
     try {
-      const pipeline = new HeroPipeline(scene.game);
+      const pipeline = new TreePipeline(scene.game);
       if (scene.game.renderer.pipelines) {
-        scene.game.renderer.pipelines.add('HeroPipeline', pipeline);
-        console.log('Shadow pipeline successfully added');
+        scene.game.renderer.pipelines.add('TreePipeline', pipeline);
+        console.log('Tree shadow pipeline successfully added');
         pipelineApplied = true;
       } else {
         console.warn('Renderer pipelines not available');
       }
     } catch (e) {
-      console.error('Failed to add shadow pipeline:', e);
+      console.error('Failed to add tree shadow pipeline:', e);
     }
   } else {
-    console.warn('WebGL not available. Shadow shader skipped.');
+    console.warn('WebGL not available. Tree shadow shader skipped.');
   }
 
   return pipelineApplied;
