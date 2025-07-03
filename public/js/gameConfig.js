@@ -1,8 +1,9 @@
 export function getGameConfig(sceneFunctions) {
   const tileSize = 32;
   const pixelRatio = window.devicePixelRatio || 1;
-  const width = Math.floor((window.innerWidth * pixelRatio) / tileSize) * tileSize/2;
-  const height = Math.floor((window.innerHeight * pixelRatio) / tileSize) * tileSize/2;
+  const scaleFactor = 1;
+  const width = Math.floor((window.innerWidth * pixelRatio *scaleFactor) / tileSize) * tileSize/2;
+  const height = Math.floor((window.innerHeight * pixelRatio *scaleFactor) / tileSize) * tileSize/2;
   return {
     type: Phaser.WEBGL,
     width: width,

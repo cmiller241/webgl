@@ -1,8 +1,8 @@
-const DEBUG = true; // Enable debug logging for UV verification
+const DEBUG = false;
 
 export function render(cameraX, cameraY) {
   let activeGrassSprites = this.activeGrassSprites || [];
-  this.activeGrassSprites = activeGrassSprites; // Persist across calls
+  this.activeGrassSprites = activeGrassSprites;
   const spriteWidth = 32;
   const spriteHeight = 32;
   const canvasWidth = this.game.config.width;
@@ -135,72 +135,78 @@ export function render(cameraX, cameraY) {
         const trunkSprite = this.trunkGroup.get(centerX, baseY);
         if (trunkSprite) {
           trunkSprite.setTexture('tree', 0)
-            .setDepth(row * 10 + 1)
+            .setDepth(row * 10 + 5)
             .setAngle(rotationDeg)
             .setY(baseY - 240)
             .setActive(true)
             .setVisible(true);
-          if (this.game.renderer.pipelines && this.game.renderer.pipelines.get('TreePipeline')) {
-            trunkSprite.setPipeline('TreePipeline');
-            const frame = trunkSprite.frame;
-            if (frame && frame.uvs) {
-              trunkSprite.pipeline.set2f('uFrameUV', frame.uvs[0], frame.uvs[1]);
-              if (DEBUG) console.log(`Trunk UVs set: (${frame.uvs[0]}, ${frame.uvs[1]}) at (${centerX}, ${baseY})`);
-            } else if (DEBUG) {
-              console.warn(`No UVs for trunk sprite at (${centerX}, ${baseY})`);
-            }
+          if (this.game.renderer.pipelines && this.game.renderer.pipelines.get('TrunkPipeline')) {
+            trunkSprite.setPipeline('TrunkPipeline');
+            if (DEBUG) console.log(`TrunkPipeline applied at (${centerX}, ${baseY})`);
+            if (DEBUG) console.log('Trunk frame data:', {
+              textureKey: trunkSprite.texture.key,
+              textureWidth: trunkSprite.texture.width,
+              textureHeight: trunkSprite.texture.height,
+              frameWidth: trunkSprite.frame.width,
+              frameHeight: trunkSprite.frame.height,
+              uvs: trunkSprite.frame.uvs,
+              frameName: trunkSprite.frame.name
+            });
           }
           treeCount++;
         } else if (DEBUG) {
           console.warn(`No trunk sprite at (${centerX}, ${baseY}), tile: ${tile}`);
         }
 
-        const leavesSprite = this.leavesGroup.get(centerX, baseY - 1);
-        if (leavesSprite) {
-          leavesSprite.setTexture('tree', 1)
-            .setDepth(row * 10 + 2)
-            .setAngle(rotationDeg)
-            .setY(baseY - 240)
-            .setActive(true)
-            .setVisible(true)
-            .setTint((0x80 + Math.floor((col % 10) * 25) << 16) | (0x80 + Math.floor((row % 10) * 8) << 8) | 0x10);
-          if (this.game.renderer.pipelines && this.game.renderer.pipelines.get('TreePipeline')) {
-            leavesSprite.setPipeline('TreePipeline');
-            const frame = leavesSprite.frame;
-            if (frame && frame.uvs) {
-              leavesSprite.pipeline.set2f('uFrameUV', frame.uvs[0], frame.uvs[1]);
-              if (DEBUG) console.log(`Leaves UVs set: (${frame.uvs[0]}, ${frame.uvs[1]}) at (${centerX}, ${baseY - 1})`);
-            } else if (DEBUG) {
-              console.warn(`No UVs for leaves sprite at (${centerX}, ${baseY - 1})`);
-            }
-            // Fallback: Hardcode leaves UVs to test
-            leavesSprite.pipeline.set2f('uFrameUV', 0.3333, 0.0);
-            if (DEBUG) console.log(`Leaves fallback UVs set: (0.3333, 0.0) at (${centerX}, ${baseY - 1})`);
-          }
-          treeCount++;
-        } else if (DEBUG) {
-          console.warn(`No leaves sprite at (${centerX}, ${baseY - 1}), tile: ${tile}`);
-        }
+        // const leavesSprite = this.leavesGroup.get(centerX, baseY - 1);
+        // if (leavesSprite) {
+        //   leavesSprite.setTexture('tree', 1)
+        //     .setDepth(row * 10 + 20)
+        //     .setAngle(rotationDeg)
+        //     .setY(baseY - 240)
+        //     .setActive(true)
+        //     .setVisible(true)
+        //     .setTint((0x80 + Math.floor((col % 10) * 25) << 16) | (0x80 + Math.floor((row % 10) * 8) << 8) | 0x10);
+        //   if (this.game.renderer.pipelines && this.game.renderer.pipelines.get('LeavesPipeline')) {
+        //     //leavesSprite.setPipeline('LeavesPipeline');
+        //     if (DEBUG) console.log(`LeavesPipeline applied at (${centerX}, ${baseY - 1})`);
+        //     if (DEBUG) console.log('Leaves frame data:', {
+        //       textureKey: leavesSprite.texture.key,
+        //       textureWidth: leavesSprite.texture.width,
+        //       textureHeight: leavesSprite.texture.height,
+        //       frameWidth: leavesSprite.frame.width,
+        //       frameHeight: leavesSprite.frame.height,
+        //       uvs: leavesSprite.frame.uvs,
+        //       frameName: leavesSprite.frame.name
+        //     });
+        //   }
+        //   treeCount++;
+        // } else if (DEBUG) {
+        //   console.warn(`No leaves sprite at (${centerX}, ${baseY - 1}), tile: ${tile}`);
+        // }
       }
     }
   }
 
-  this.heroPositions.forEach(({ x, y }) => {
+  this.heroGroup.getChildren().forEach(sprite => {
+    sprite.active = false;
+    sprite.visible = false;
+    sprite.setPosition(0, 0);
+    sprite.resetPipeline();
+  });
+
+  this.heroPositions.forEach(({ x, y, frame }) => {
     if (x >= cameraX - 112 && x <= cameraX + canvasWidth + 112 &&
         y >= cameraY - 112 && y <= cameraY + canvasHeight + 112) {
       const heroSprite = this.heroGroup.get(x, y);
       if (heroSprite) {
-        heroSprite.setTexture('hero');
+        heroSprite.setTexture('hero', frame);
         heroSprite.setDepth((y / spriteHeight) * 10 + 1.5);
         heroSprite.setActive(true);
         heroSprite.setVisible(true);
         if (this.game.renderer.pipelines && this.game.renderer.pipelines.get('HeroPipeline')) {
           heroSprite.setPipeline('HeroPipeline');
-          const frame = heroSprite.frame;
-          if (frame && frame.uvs) {
-            heroSprite.pipeline.set2f('uFrameUV', frame.uvs[0], frame.uvs[1]);
-            if (DEBUG) console.log(`Hero UVs set: (${frame.uvs[0]}, ${frame.uvs[1]}) at (${x}, ${y})`);
-          }
+          if (DEBUG) console.log(`HeroPipeline applied at (${x}, ${y})`);
         }
         heroCount++;
       } else if (DEBUG) {
