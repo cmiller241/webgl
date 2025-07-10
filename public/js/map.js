@@ -63,6 +63,13 @@ export function create() {
   this.heroPositions = heroPositions;
   this.heroFrame = getHeroFrame(this);
 
+  // Initialize render texture for shadows
+  this.shadowRenderTexture = this.add.renderTexture(0, 0, this.game.config.width, this.game.config.height)
+    .setOrigin(0, 0)
+    .setDepth(500) // Above sprites, below FPS UI
+    .setScrollFactor(0)
+    .setAlpha(0.5); // Uniform opacity for all shadows
+
   if (!this.fpsBox) {
     this.fpsBox = this.add.rectangle(10, 10, 180, 60, 0x000000).setOrigin(0).setAlpha(0.5);
     this.fpsBox.setScrollFactor(0);

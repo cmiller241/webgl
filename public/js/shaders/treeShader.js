@@ -20,7 +20,7 @@ export function setupTreeShader(scene) {
           
           // Early exit for opaque pixels
           if (color.a >= 0.01) {
-            gl_FragColor = finalColor;
+            gl_FragColor = vec4(0.0, 0.0, 0.0, 0.0);
             return;
           }
           
@@ -28,7 +28,7 @@ export function setupTreeShader(scene) {
           const float baseScreenY = 0.51041667; // 245.0 / 480.0
           
           // Skip pixels far from baseScreenY
-          if (abs(outTexCoord.y - baseScreenY) * 480.0 > 64.0) {
+          if (abs(outTexCoord.y - baseScreenY) * 480.0 > 128.0) {
             gl_FragColor = finalColor;
             return;
           }
@@ -48,7 +48,7 @@ export function setupTreeShader(scene) {
               if (frameCoord.x >= 0.0 && frameCoord.x <= 1.0 && frameCoord.y >= 0.0 && frameCoord.y <= 1.0) {
                 vec2 globalSourceCoord = uFrameUV + frameCoord * uFrameSize;
                 if (texture2D(uMainSampler, globalSourceCoord).a > 0.01) {
-                  finalColor = vec4(0.0, 0.0, 0.1, 0.3); // Dark blue shadow
+                  finalColor = vec4(0.0, 0.0, 0.0, 1.0); // Semi-transparent black shadow
                 }
               }
             }
@@ -84,64 +84,28 @@ export function setupTreeShader(scene) {
         const sinTheta = Math.sin(angleRad);
         const maxT = Math.abs(sinTheta) > 0.01 ? 500.0 / Math.abs(sinTheta) : Number.MAX_VALUE;
         this.set2f('uResolution', this.game.config.width, this.game.config.height);
-        this.set1f('uDivideBy', 1.5); // Perfect size
+        this.set1f('uDivideBy', 1.5);
         this.set1f('uCosTheta', Math.cos(angleRad));
         this.set1f('uSinTheta', sinTheta);
         this.set1f('uMaxT', maxT);
         this.set2f('uFrameUV', 0.0, 0.0);
         this.set2f('uFrameSize', 480.0 / 1440.0, 480.0 / 480.0);
-        console.log('TrunkPipeline onPreRender: Shader uniforms set, time:', this.game.loop.time / 1000.0);
-      }
-    }
-
-    // Leaves Pipeline
-    class LeavesPipeline extends Phaser.Renderer.WebGL.Pipelines.SinglePipeline {
-      constructor(game) {
-        super({
-          game: game,
-          fragShader: TreeShader.fragmentShader,
-          uniforms: [
-            'uMainSampler',
-            'uResolution',
-            'uDivideBy',
-            'uCosTheta',
-            'uSinTheta',
-            'uMaxT',
-            'uFrameUV',
-            'uFrameSize'
-          ]
-        });
+        if (scene.DEBUG) console.log('TrunkPipeline onPreRender: Shader uniforms set, time:', this.game.loop.time / 1000.0);
       }
 
-      onPreRender() {
-        const uTime = this.game.loop.time / 500.0;
-        const angleRad = (uTime / 720.0 - Math.floor(uTime / 720.0)) * 2.0 * Math.PI;
-        const sinTheta = Math.sin(angleRad);
-        const maxT = Math.abs(sinTheta) > 0.01 ? 500.0 / Math.abs(sinTheta) : Number.MAX_VALUE;
-        this.set2f('uResolution', this.game.config.width, this.game.config.height);
-        this.set1f('uDivideBy', 1.5); // Perfect size
-        this.set1f('uCosTheta', Math.cos(angleRad));
-        this.set1f('uSinTheta', sinTheta);
-        this.set1f('uMaxT', maxT);
-        this.set2f('uFrameUV', 0.3333, 0.0);
-        this.set2f('uFrameSize', 480.0 / 1440.0, 480.0 / 480.0);
-        console.log('LeavesPipeline onPreRender: Shader uniforms set, time:', this.game.loop.time / 1000.0);
-      }
     }
 
     try {
       const trunkPipeline = new TrunkPipeline(scene.game);
-      const leavesPipeline = new LeavesPipeline(scene.game);
       if (scene.game.renderer.pipelines) {
         scene.game.renderer.pipelines.add('TrunkPipeline', trunkPipeline);
-        scene.game.renderer.pipelines.add('LeavesPipeline', leavesPipeline);
-        console.log('Tree shadow pipelines successfully added');
+        if (scene.DEBUG) console.log('Tree shadow pipeline successfully added');
         pipelineApplied = true;
       } else {
         console.warn('Renderer pipelines not available');
       }
     } catch (e) {
-      console.error('Failed to add tree shadow pipelines:', e);
+      console.error('Failed to add tree shadow pipeline:', e);
     }
   } else {
     console.warn('WebGL not available. Tree shadow shader skipped.');

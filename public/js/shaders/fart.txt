@@ -1,0 +1,74 @@
+extern float angle;
+extern Image colorMapCanvas;
+extern float spriteLeftX;
+extern float spriteTopY;
+extern float spriteWidth;
+extern float spriteHeight;
+extern float spriteBase;
+extern float xstart;
+extern float xend;
+extern float shadowSize;
+uniform vec2 canvasSize; 
+extern vec2 spotlight;   
+extern float showSpotlight; 
+float base = spriteTopY + spriteBase; //base plus top of sprite 80
+float baseX1 = spriteLeftX + xstart;
+float baseX2 = spriteLeftX + xend; 
+const float PI = 3.14159265359;
+float rad = angle * PI / 180.0;
+vec2 spriteAngleMove = vec2(cos(rad) / spriteWidth, sin(rad) / spriteHeight);
+vec2 canvasAngleMove = vec2(cos(rad) / canvasSize.x, sin(rad) / canvasSize.y);   
+float baseScreenY = base / canvasSize.y;
+float baseScreenX1 = baseX1 / canvasSize.x;
+float baseScreenX2 = baseX2 / canvasSize.x; 
+vec2 normalizedSpotlight = spotlight / canvasSize;
+
+
+float crossProduct2D(vec2 a, vec2 b) {
+    return a.x * b.y - a.y * b.x;
+}
+
+bool segmentsIntersect(vec2 p, vec2 p2, vec2 q, vec2 q2) {
+    vec2 r = p2 - p;
+    vec2 s = q2 - q;
+    float rxs = crossProduct2D(r, s);
+    vec2 qmp = q - p;
+    if (abs(rxs) < 0.0001) {
+        return false; // Lines are parallel or collinear
+    }
+    float t = crossProduct2D(qmp, s) / rxs;
+    float u = crossProduct2D(qmp, r) / rxs;
+    return (t >= 0.0 && t <= 1.0 && u >= 0.0 && u <= 1.0);
+}
+
+vec4 effect(vec4 color, Image texture, vec2 texture_coords, vec2 screen_coords) {
+    vec2 pos = texture_coords;
+    vec4 pixel = vec4(0.0);
+    vec2 normalizedScreenCoords = screen_coords / canvasSize;
+    if (segmentsIntersect(
+    normalizedScreenCoords,
+    normalizedScreenCoords + shadowSize * canvasAngleMove,
+    vec2(baseScreenX1, baseScreenY),
+    vec2(baseScreenX2, baseScreenY)
+    )) { //If the shadow doesn't intersect the base, don't draw anything
+        for (int i = 0; i <= shadowSize; i++) {
+            normalizedScreenCoords += canvasAngleMove;
+            pos += spriteAngleMove;
+            if (normalizedScreenCoords.y >= baseScreenY - 0.003 &&
+                normalizedScreenCoords.y <= baseScreenY + 0.003 && 
+                normalizedScreenCoords.x >= baseScreenX1 &&
+                normalizedScreenCoords.x <= baseScreenX2) {
+                pos.y -= i/spriteHeight;
+                vec4 new_pixel = Texel(texture, pos);
+                if (new_pixel.a != 0.0) {
+                    pixel.b = 0.1;
+                    pixel.a = 1.0;
+                } else {
+                    break;
+                }
+            }   
+        }
+    }
+
+    return pixel;
+}
