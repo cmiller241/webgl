@@ -52,6 +52,9 @@ export function render(cameraX, cameraY) {
     console.log(`Available grass sprites: ${availableGrassSprites}`);
   }
 
+  // Array to collect trunk sprites for batch drawing shadows
+  const trunkSpritesToDraw = [];
+
   for (let row = startRow; row < endRow; row++) {
     for (let col = startCol; col < endCol; col++) {
       const tileValue = this.mapData[row][col][0];
@@ -135,6 +138,7 @@ export function render(cameraX, cameraY) {
         const centerX = Math.floor(col * spriteWidth - 240 + 16) + 240;
         const baseY = Math.floor(row * spriteHeight - 240 + 16) + 480;
 
+        // Sprite for the trunk itself (no shader, visible)
         const trunkSprite = this.trunkGroup.get(centerX, baseY);
         if (trunkSprite) {
           trunkSprite.setTexture('tree', 0)
@@ -142,46 +146,52 @@ export function render(cameraX, cameraY) {
             .setAngle(rotationDeg)
             .setY(baseY - 240)
             .setActive(true)
-            .setVisible(false);
+            .setVisible(true); // Render to screen
+          if (DEBUG) console.log(`Trunk sprite rendered at (${centerX}, ${baseY - 240})`);
+          treeCount++;
+        } else if (DEBUG) {
+          console.warn(`No trunk sprite available for rendering at (${centerX}, ${baseY}), tile: ${tile}`);
+        }
+
+        // Sprite for the shadow (with TrunkPipeline, invisible to screen)
+        const shadowTrunkSprite = this.trunkGroup.get(centerX, baseY);
+        if (shadowTrunkSprite) {
+          shadowTrunkSprite.setTexture('tree', 0)
+            .setDepth(row * 10 + 5)
+            .setAngle(rotationDeg)
+            .setY(baseY - 240)
+            .setActive(true)
+            .setVisible(false); // Only for shadowRenderTexture
           if (this.game.renderer.pipelines && this.game.renderer.pipelines.get('TrunkPipeline')) {
-            trunkSprite.setPipeline('TrunkPipeline');
-            // Draw shadow to render texture, accounting for camera offset
-            this.shadowRenderTexture.draw(trunkSprite, centerX - cameraX, baseY - 240 - cameraY);
-            if (DEBUG) console.log(`TrunkPipeline applied and drawn to render texture at (${centerX - cameraX}, ${baseY - 240 - cameraY})`);
+            shadowTrunkSprite.setPipeline('TrunkPipeline');
+            // Adjust position for batch drawing, accounting for camera offset
+            shadowTrunkSprite.setPosition(centerX - cameraX, baseY - 240 - cameraY);
+            trunkSpritesToDraw.push(shadowTrunkSprite);
+            if (DEBUG) console.log(`TrunkPipeline applied and added to batch at (${centerX - cameraX}, ${baseY - 240 - cameraY})`);
             if (DEBUG) console.log('Trunk frame data:', {
-              textureKey: trunkSprite.texture.key,
-              textureWidth: trunkSprite.texture.width,
-              textureHeight: trunkSprite.texture.height,
-              frameWidth: trunkSprite.frame.width,
-              frameHeight: trunkSprite.frame.height,
-              uvs: trunkSprite.frame.uvs,
-              frameName: trunkSprite.frame.name
+              textureKey: shadowTrunkSprite.texture.key,
+              textureWidth: shadowTrunkSprite.texture.width,
+              textureHeight: shadowTrunkSprite.texture.height,
+              frameWidth: shadowTrunkSprite.frame.width,
+              frameHeight: shadowTrunkSprite.frame.height,
+              uvs: shadowTrunkSprite.frame.uvs,
+              frameName: shadowTrunkSprite.frame.name
             });
           }
           treeCount++;
         } else if (DEBUG) {
-          console.warn(`No trunk sprite at (${centerX}, ${baseY}), tile: ${tile}`);
+          console.warn(`No shadow trunk sprite available at (${centerX}, ${baseY}), tile: ${tile}`);
         }
-
-        // const leavesSprite = this.leavesGroup.get(centerX, baseY - 240);
-        // if (leavesSprite) {
-        //   leavesSprite.setTexture('tree', 1)
-        //     .setDepth(row * 10 + 6)
-        //     .setAngle(rotationDeg)
-        //     .setActive(true)
-        //     .setVisible(true);
-        //   if (this.game.renderer.pipelines && this.game.renderer.pipelines.get('LeavesPipeline')) {
-        //     leavesSprite.setPipeline('LeavesPipeline');
-        //     // Draw shadow to render texture, accounting for camera offset
-        //     this.shadowRenderTexture.draw(leavesSprite, centerX - cameraX, baseY - 240 - cameraY);
-        //     if (DEBUG) console.log(`LeavesPipeline applied and drawn to render texture at (${centerX - cameraX}, ${baseY - 240 - cameraY})`);
-        //   }
-        //   treeCount++;
-        // } else if (DEBUG) {
-        //   console.warn(`No leaves sprite at (${centerX}, ${baseY - 240}), tile: ${tile}`);
-        // }
       }
     }
+  }
+
+  // Batch draw all shadow trunk sprites to the shadow render texture
+  if (trunkSpritesToDraw.length > 0) {
+    this.shadowRenderTexture.beginDraw();
+    this.shadowRenderTexture.batchDraw(trunkSpritesToDraw);
+    this.shadowRenderTexture.endDraw();
+    if (DEBUG) console.log(`Batch drew ${trunkSpritesToDraw.length} shadow trunk sprites to shadow render texture`);
   }
 
   this.heroGroup.getChildren().forEach(sprite => {

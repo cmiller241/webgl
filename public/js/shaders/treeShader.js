@@ -19,7 +19,7 @@ export function setupTreeShader(scene) {
           lowp vec4 finalColor = color;
           
           // Early exit for opaque pixels
-          if (color.a >= 0.01) {
+          if (color.a >= 0.001) {
             gl_FragColor = vec4(0.0, 0.0, 0.0, 0.0);
             return;
           }
@@ -48,7 +48,7 @@ export function setupTreeShader(scene) {
               if (frameCoord.x >= 0.0 && frameCoord.x <= 1.0 && frameCoord.y >= 0.0 && frameCoord.y <= 1.0) {
                 vec2 globalSourceCoord = uFrameUV + frameCoord * uFrameSize;
                 if (texture2D(uMainSampler, globalSourceCoord).a > 0.01) {
-                  finalColor = vec4(0.0, 0.0, 0.0, 1.0); // Semi-transparent black shadow
+                  finalColor = vec4(0.0, 0.0, 0.3, 1.0); // Semi-transparent black shadow
                 }
               }
             }

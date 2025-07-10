@@ -66,9 +66,9 @@ export function create() {
   // Initialize render texture for shadows
   this.shadowRenderTexture = this.add.renderTexture(0, 0, this.game.config.width, this.game.config.height)
     .setOrigin(0, 0)
-    .setDepth(500) // Above sprites, below FPS UI
+    .setDepth(1) // Above grass (0 or row * 10 + 3), below trees/mountains/heroes
     .setScrollFactor(0)
-    .setAlpha(0.5); // Uniform opacity for all shadows
+    .setAlpha(0.4); // Uniform opacity for all shadows
 
   if (!this.fpsBox) {
     this.fpsBox = this.add.rectangle(10, 10, 180, 60, 0x000000).setOrigin(0).setAlpha(0.5);
@@ -93,7 +93,7 @@ export function create() {
   );
   this.cameras.main.scrollX = 0;
   this.cameras.main.scrollY = 0;
-  this.cameras.main.roundPixels = true;
+  this.cameras.main.roundPixels = false;  //Definitely false. Always false
 
   if (this.DEBUG) console.log('Map sample (5x5):', JSON.stringify(this.mapData.slice(0, 5).map(row => row.slice(0, 5))));
 

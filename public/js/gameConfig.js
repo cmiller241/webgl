@@ -1,7 +1,7 @@
 export function getGameConfig(sceneFunctions) {
   const tileSize = 32;
   const pixelRatio = window.devicePixelRatio || 1;
-  const scaleFactor = .7;
+  const scaleFactor = 1;
   const width = Math.floor((window.innerWidth * pixelRatio *scaleFactor) / tileSize) * tileSize/2;
   const height = Math.floor((window.innerHeight * pixelRatio *scaleFactor) / tileSize) * tileSize/2;
   return {
